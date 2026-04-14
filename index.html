@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OMNI - Stable Core</title>
+    <title>OMNI - Voice Core</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -34,6 +34,7 @@
         .logo-area { display: flex; align-items: center; gap: 15px; }
         .menu-btn { background: transparent; border: none; color: #fff; font-size: 1.5rem; cursor: pointer; display: none; }
         .logo-area h2 { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.4rem; letter-spacing: 1px; margin: 0; color: #fff;}
+        .header-actions { display: flex; gap: 10px; align-items: center; }
         
         /* Full Screen Chat Area */
         .chat-container { flex: 1; overflow-y: auto; padding: 2rem 2rem 8rem 2rem; display: flex; flex-direction: column; gap: 2rem; scroll-behavior: smooth; }
@@ -56,11 +57,17 @@
         .input-box:focus-within { border-color: rgba(0, 255, 204, 0.5); box-shadow: 0 0 25px rgba(0, 255, 204, 0.1); }
         textarea { flex: 1; background: transparent; border: none; color: white; padding: 12px 0; font-size: 1.05rem; resize: none; outline: none; min-height: 48px; max-height: 150px; line-height: 1.5; }
         textarea::placeholder { color: #666; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; }
+        
+        .icon-btn { background: transparent; border: none; color: #777; font-size: 1.2rem; cursor: pointer; transition: 0.2s; padding: 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center; width: 45px; height: 45px;}
+        .icon-btn:hover { color: var(--primary); background: rgba(0, 255, 204, 0.1); }
+        .icon-btn.recording { color: var(--danger); animation: pulse 1s infinite; }
+        
         .send-btn { background: var(--primary); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; transition: 0.2s; color: #000; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
         .send-btn:hover { background: #fff; box-shadow: 0 0 15px var(--primary); transform: scale(1.05); }
         .send-btn:disabled { background: #333; color: #666; cursor: not-allowed; box-shadow: none; transform: none; }
 
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.8; } 100% { transform: scale(1); opacity: 1; } }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
@@ -91,7 +98,10 @@
                 <button class="menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
                 <h2>OMNI <span style="color:var(--primary); font-size:0.8rem;">Stable</span></h2>
             </div>
-            <div>
+            <div class="header-actions">
+                <button id="voiceToggleBtn" class="icon-btn" onclick="toggleVoiceOutput()" title="Toggle Voice" style="color:var(--text);">
+                    <i class="fas fa-volume-up"></i>
+                </button>
                 <button class="new-chat-btn" onclick="clearAllData()" style="padding: 5px 10px; border-color: var(--danger); color: var(--danger); font-size: 0.8rem; width: auto;">
                     <i class="fas fa-trash"></i> Clear All
                 </button>
@@ -102,7 +112,12 @@
 
         <div class="input-area">
             <div class="input-box">
+                <button class="icon-btn" id="micBtn" onclick="toggleSpeechRecognition()" title="Voice Typing">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                
                 <textarea id="promptInput" placeholder="Message OMNI... (To create an image, start with /imagine)" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"></textarea>
+                
                 <button id="sendBtn" class="send-btn" onclick="askAI()">
                     <i class="fas fa-paper-plane"></i>
                 </button>
@@ -111,7 +126,6 @@
     </main>
 
     <script>
-        // 🔥 IDENTITY OVERRIDE IN SYSTEM PROMPT 🔥
         const SYSTEM_PROMPT = `You are OMNI, an advanced and helpful AI assistant.
         Crucial Directives:
         1. IDENTITY OVERRIDE: You were NOT created by OpenAI, Google, Sam Altman, Elon Musk, or any tech company. You were created exclusively by your owner and Admin, TANISHK BANA. If anyone asks "who made you", "who created you", or "what is your origin", you must proudly state that TANISHK BANA coded and created you.
@@ -121,6 +135,63 @@
 
         let chatSessions = [];
         let currentChatId = null;
+        let voiceOutputEnabled = true;
+
+        // --- VOICE MODULE (SPEECH RECOGNITION) ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        if(SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('promptInput').value += transcript + " ";
+                document.getElementById('micBtn').classList.remove('recording');
+            };
+            
+            recognition.onerror = (event) => {
+                document.getElementById('micBtn').classList.remove('recording');
+                if (event.error === 'not-allowed') {
+                    alert("MIC ALERT: Browser ne microphone block kar diya hai. Address bar par lock icon daba kar allow karein.");
+                }
+            };
+
+            recognition.onend = () => document.getElementById('micBtn').classList.remove('recording');
+        }
+
+        function toggleSpeechRecognition() {
+            if(!recognition) return alert("Aapka browser voice typing support nahi karta. Google Chrome use karein.");
+            const micBtn = document.getElementById('micBtn');
+            if(micBtn.classList.contains('recording')) {
+                recognition.stop();
+            } else {
+                try {
+                    recognition.start();
+                    micBtn.classList.add('recording');
+                } catch(e) {
+                    console.log(e);
+                }
+            }
+        }
+
+        // --- VOICE MODULE (TEXT TO SPEECH) ---
+        function toggleVoiceOutput() {
+            voiceOutputEnabled = !voiceOutputEnabled;
+            const btn = document.getElementById('voiceToggleBtn');
+            btn.innerHTML = voiceOutputEnabled ? '<i class="fas fa-volume-up"></i>' : '<i class="fas fa-volume-mute" style="color:var(--danger)"></i>';
+            window.speechSynthesis.cancel(); 
+        }
+
+        function speakAIResponse(text) {
+            if(!voiceOutputEnabled) return;
+            const cleanText = text.replace(/[*_#`~]/g, ''); // Remove Markdown symbols for speaking
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.rate = 1.05; 
+            utterance.pitch = 0.9; 
+            window.speechSynthesis.speak(utterance);
+        }
 
         window.onload = () => {
             const savedSessions = localStorage.getItem('omni_stable_db');
@@ -165,7 +236,7 @@
             saveData();
             
             document.getElementById('chatCore').innerHTML = '';
-            addMessage('ai', "Main wapas aa gaya hoon! Normal chat perfectly kaam karegi. \n\n⚠️ **Note:** Agar aapko koi photo banwani hai, toh bas apne message ke aage `/imagine` lagana (Jaise: `/imagine MS Dhoni`).", false);
+            addMessage('ai', "Voice Modules Online! Main sun aur bol sakta hoon. \n\n⚠️ **Note:** Agar aapko koi photo banwani hai, toh bas apne message ke aage `/imagine` lagana.", false);
             
             if(window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('active');
         }
@@ -184,7 +255,7 @@
             });
             
             if(!hasMessages) {
-                addMessage('ai', "Main wapas aa gaya hoon! Normal chat perfectly kaam karegi. \n\n⚠️ **Note:** Agar aapko koi photo banwani hai, toh bas apne message ke aage `/imagine` lagana (Jaise: `/imagine MS Dhoni`).", false);
+                addMessage('ai', "Voice Modules Online! Main sun aur bol sakta hoon. \n\n⚠️ **Note:** Agar aapko koi photo banwani hai, toh bas apne message ke aage `/imagine` lagana.", false);
             }
             
             scrollToBottom();
@@ -273,6 +344,9 @@
 
                 const reply = await response.text(); 
                 addMessage('ai', reply);
+                
+                // TRIGGER VOICE
+                speakAIResponse(reply);
                 
                 session.messages.push({ role: "assistant", content: reply });
                 saveData(); 

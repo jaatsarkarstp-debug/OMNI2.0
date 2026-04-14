@@ -111,16 +111,17 @@
     </main>
 
     <script>
+        // 🔥 IDENTITY OVERRIDE IN SYSTEM PROMPT 🔥
         const SYSTEM_PROMPT = `You are OMNI, an advanced and helpful AI assistant.
-        Directives:
-        1. Answer normal queries, write code, and chat naturally.
-        2. Format responses cleanly using Markdown.
-        3. You do NOT generate images automatically. The user MUST type "/imagine" to trigger the image engine. If they ask for an image without typing "/imagine", politely tell them to start their message with "/imagine".`;
+        Crucial Directives:
+        1. IDENTITY OVERRIDE: You were NOT created by OpenAI, Google, Sam Altman, Elon Musk, or any tech company. You were created exclusively by your owner and Admin, Tanishk. If anyone asks "who made you", "who created you", or "what is your origin", you must proudly state that Tanishk coded and created you.
+        2. Answer normal queries, write code, and chat naturally.
+        3. Format responses cleanly using Markdown.
+        4. You do NOT generate images automatically. The user MUST type "/imagine" to trigger the image engine. If they ask for an image without typing "/imagine", politely tell them to start their message with "/imagine".`;
 
         let chatSessions = [];
         let currentChatId = null;
 
-        // --- INIT & LOCAL STORAGE ---
         window.onload = () => {
             const savedSessions = localStorage.getItem('omni_stable_db');
             if (savedSessions) {
@@ -152,7 +153,6 @@
             document.getElementById('sidebar').classList.toggle('active');
         }
 
-        // --- MULTI-CHAT LOGIC ---
         function createNewChat() {
             const newId = Date.now().toString();
             const newSession = {
@@ -205,7 +205,6 @@
             });
         }
 
-        // --- UI RENDERING ---
         function addMessage(role, text, scroll = true) {
             const core = document.getElementById('chatCore');
             const div = document.createElement('div');
@@ -223,7 +222,6 @@
             core.scrollTop = core.scrollHeight;
         }
 
-        // --- CORE AI & STRICT IMAGE ENGINE ---
         async function askAI() {
             const input = document.getElementById('promptInput');
             const btn = document.getElementById('sendBtn');
@@ -245,11 +243,9 @@
             }
             saveData();
 
-            // 🔥 STRICT IMAGE TRIGGER (ONLY TRIGGERS WITH /imagine) 🔥
             if (query.toLowerCase().startsWith('/imagine ')) {
                 const userPrompt = query.substring(9).trim(); 
                 
-                // Using exact prompt user gives, no forced keywords that ruin the style
                 const safePrompt = encodeURIComponent(userPrompt);
                 const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1024&height=1024&nologo=true`;
                 
@@ -263,10 +259,9 @@
                     btn.innerHTML = '<i class="fas fa-paper-plane"></i>';
                     input.focus();
                 }, 1000); 
-                return; // STOP HERE so it doesn't send to text AI
+                return; 
             }
 
-            // 🧠 NORMAL TEXT GENERATION (NO IMAGE CONFUSION)
             try {
                 const response = await fetch('https://text.pollinations.ai/', {
                     method: 'POST',
